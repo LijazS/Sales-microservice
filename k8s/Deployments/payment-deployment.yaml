@@ -28,10 +28,10 @@ spec:
           resources:
             limits:
               memory: "512Mi"
-              cpu: "200Mi"
+              cpu: "200m"
             requests:
               memory: "256Mi"
-              cpu: "100Mi"
+              cpu: "100m"
           envFrom:
             - secretRef:
                 name: backend-secret
