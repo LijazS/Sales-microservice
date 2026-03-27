@@ -1,11 +1,11 @@
-from app.core.celery_app import celery
+from celery import shared_task
 from app.services.email_service import send_email
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-@celery.task(
+@shared_task(
     name="notification.send_signup_email",
     bind=True,
     autoretry_for=(Exception,),

@@ -14,9 +14,7 @@ celery = Celery(
 )
 
 celery.conf.update(
-    task_routes={
-        "notification.send_signup_email": {"queue": "notification_queue"}
-    },
+    imports=["app.tasks.email_tasks"],
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
@@ -24,5 +22,3 @@ celery.conf.update(
     enable_utc=True,
 )
 
-
-celery.autodiscover_tasks(["app.tasks"])
