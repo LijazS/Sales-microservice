@@ -3,4 +3,4 @@ kind: Namespace
 metadata:
   name: sales-test-ns
   labels:
-    name: sales-test-ns
+    shared-gateway: "true"
