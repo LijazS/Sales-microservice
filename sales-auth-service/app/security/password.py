@@ -1,4 +1,3 @@
-import hashlib
 from passlib.context import CryptContext
 
 pwd_context = CryptContext(
@@ -6,11 +5,10 @@ pwd_context = CryptContext(
     deprecated="auto"
 )
 
+
 def hash_password(password: str) -> str:
-    sha = hashlib.sha256(password.encode()).hexdigest()
-    return pwd_context.hash(sha)
+    return pwd_context.hash(password)
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    sha = hashlib.sha256(password.encode()).hexdigest()
-    return pwd_context.verify(sha, hashed)
+    return pwd_context.verify(password, hashed)

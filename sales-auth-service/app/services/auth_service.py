@@ -1,3 +1,4 @@
+import logging
 from sqlalchemy.orm import Session
 
 from app.models.organization import Organization
@@ -17,6 +18,8 @@ from app.exceptions.custom_exceptions import (
     ConflictException,
     ForbiddenException
 )
+
+logger = logging.getLogger(__name__)
 
 
 def get_user_permissions(db: Session, organization_user_id: int):
@@ -38,6 +41,8 @@ def get_user_permissions(db: Session, organization_user_id: int):
 
 def signup(db: Session, org_name: str, org_slug: str, email: str, password: str):
 
+    logger.info(f"Signup attempt email={email}, org={org_slug}")
+
     existing_org = db.query(Organization).filter(
         Organization.slug == org_slug
     ).first()
@@ -58,7 +63,6 @@ def signup(db: Session, org_name: str, org_slug: str, email: str, password: str)
         email=email,
         password_hash=hash_password(password),
     )
-
     db.add(user)
     db.flush()
 
@@ -66,7 +70,6 @@ def signup(db: Session, org_name: str, org_slug: str, email: str, password: str)
         organization_id=organization.id,
         user_id=user.id,
     )
-
     db.add(organization_user)
     db.flush()
 
@@ -79,9 +82,12 @@ def signup(db: Session, org_name: str, org_slug: str, email: str, password: str)
         organization_user_id=organization_user.id,
         role_id=owner_role.id,
     )
-
     db.add(user_role)
+
+    # ✅ COMMIT FIRST
     db.commit()
+
+    logger.info(f"User created user_id={user.id}, org_id={organization.id}")
 
     permissions = get_user_permissions(db, organization_user.id)
 
@@ -91,7 +97,32 @@ def signup(db: Session, org_name: str, org_slug: str, email: str, password: str)
         "permissions": permissions
     })
 
-    return token
+    logger.info(f"Token generated for user_id={user.id}")
+
+    # ✅ EVENT PAYLOAD
+    payload = {
+        "event_type": "USER_SIGNED_UP",
+        "data": {
+            "user_id": user.id,
+            "email": user.email,
+            "organization_name": organization.name
+        }
+    }
+
+    # ✅ ASYNC NOTIFICATION
+    try:
+        from app.tasks.notification_tasks import send_signup_email
+        send_signup_email.delay(payload)
+        logger.info(f"Signup notification event sent for user_id={user.id}")
+
+    except Exception as e:
+        logger.error(f"Notification failed for user_id={user.id}: {e}")
+    return {
+        "access_token": token,
+        "user_id": user.id,
+        "email": user.email,
+        "organization_name": organization.name
+    }
 
 
 # -------------------------
@@ -99,6 +130,8 @@ def signup(db: Session, org_name: str, org_slug: str, email: str, password: str)
 # -------------------------
 
 def login(db: Session, org_slug: str, email: str, password: str):
+
+    logger.info(f"Login attempt email={email}, org={org_slug}")
 
     organization = db.query(Organization).filter(
         Organization.slug == org_slug
@@ -130,5 +163,7 @@ def login(db: Session, org_slug: str, email: str, password: str):
         "org_id": organization.id,
         "permissions": permissions
     })
+
+    logger.info(f"Login success user_id={user.id}")
 
     return token
