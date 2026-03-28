@@ -11,6 +11,9 @@ class Order(Base):
 
     customer_id = Column(Integer, nullable=False)
 
+    customer_email = Column(String(255), nullable=False)
+    customer_name = Column(String(255), nullable=False)
+
     status = Column(
         String(20),
         nullable=False,
