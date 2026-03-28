@@ -10,7 +10,6 @@ from app.utils.service_client import authenticated_get
 
 from app.core.logging_config import get_logger
 
-
 from app.tasks.notification_tasks import (
     send_order_created_notification,
     send_order_confirmed_notification,
@@ -22,7 +21,11 @@ logger = get_logger(__name__)
 CUSTOMER_SERVICE_URL = os.getenv("CUSTOMER_SERVICE_URL")
 
 
-def validate_customer(customer_id: int, auth_header: str):
+# -----------------------------
+# VALIDATE + FETCH CUSTOMER
+# -----------------------------
+def fetch_customer(customer_id: int, auth_header: str):
+
     response = authenticated_get(
         f"{CUSTOMER_SERVICE_URL}/customers/{customer_id}",
         auth_header
@@ -31,7 +34,31 @@ def validate_customer(customer_id: int, auth_header: str):
     if response.status_code != 200:
         raise NotFoundException("Customer not found")
 
+    data = response.json()
 
+    return {
+        "email": data.get("email"),
+        "name": data.get("name") or data.get("customer_name")
+    }
+
+
+# -----------------------------
+# HELPER: BUILD PAYLOAD
+# -----------------------------
+def build_order_payload(order: Order, items: list):
+    return {
+        "order_id": order.id,
+        "customer_id": order.customer_id,
+        "organization_id": order.organization_id,
+        "email": order.customer_email,
+        "customer_name": order.customer_name,
+        "items": items
+    }
+
+
+# -----------------------------
+# CREATE ORDER
+# -----------------------------
 def create_order(
     db: Session,
     customer_id: int,
@@ -43,11 +70,13 @@ def create_order(
 
     logger.info(f"Creating order for customer {customer_id}")
 
-    validate_customer(customer_id, auth_header)
+    customer = fetch_customer(customer_id, auth_header)
 
     order = Order(
         organization_id=organization_id,
         customer_id=customer_id,
+        customer_email=customer["email"],      
+        customer_name=customer["name"],        
         status="CREATED",
         created_by_user_id=created_by_user_id,
         created_at=datetime.now(timezone.utc),
@@ -71,17 +100,18 @@ def create_order(
 
     logger.info(f"Order created with ID {order.id}")
 
-    # ✅ Async event (Celery)
-    send_order_created_notification.delay({
-        "order_id": order.id,
-        "customer_id": customer_id,
-        "organization_id": organization_id
-    })
+    send_order_created_notification.delay(
+        build_order_payload(order, items)
+    )
 
     return get_order(db, order.id, organization_id)
 
 
+# -----------------------------
+# GET ORDER
+# -----------------------------
 def get_order(db: Session, order_id: int, organization_id: int) -> Order:
+
     order = (
         db.query(Order)
         .filter(
@@ -104,7 +134,11 @@ def get_order(db: Session, order_id: int, organization_id: int) -> Order:
     return order
 
 
+# -----------------------------
+# LIST ORDERS
+# -----------------------------
 def list_orders(db: Session, organization_id, offset=0, limit=15, status=None, customer_id=None):
+
     query = db.query(Order).filter(Order.organization_id == organization_id)
 
     if status:
@@ -131,7 +165,11 @@ def list_orders(db: Session, organization_id, offset=0, limit=15, status=None, c
     return orders
 
 
+# -----------------------------
+# UPDATE ORDER
+# -----------------------------
 def update_order(db: Session, order_id: int, organization_id: int, items: list):
+
     order = get_order(db, order_id, organization_id)
 
     if order.status != "CREATED":
@@ -154,7 +192,11 @@ def update_order(db: Session, order_id: int, organization_id: int, items: list):
     return get_order(db, order.id, organization_id)
 
 
+# -----------------------------
+# CONFIRM ORDER
+# -----------------------------
 def confirm_order(db: Session, order_id: int, organization_id: int):
+
     order = get_order(db, order_id, organization_id)
 
     if order.status != "CREATED":
@@ -166,14 +208,27 @@ def confirm_order(db: Session, order_id: int, organization_id: int):
 
     logger.info(f"Order confirmed {order.id}")
 
-    send_order_confirmed_notification.delay({
-        "order_id": order.id
-    })
+    items_payload = [
+        {
+            "product_name": item.product_name,
+            "quantity": item.quantity,
+            "unit_price": item.unit_price
+        }
+        for item in order.items
+    ]
+
+    send_order_confirmed_notification.delay(
+        build_order_payload(order, items_payload)
+    )
 
     return order
 
 
+# -----------------------------
+# CANCEL ORDER
+# -----------------------------
 def cancel_order(db: Session, order_id: int, organization_id: int):
+
     order = get_order(db, order_id, organization_id)
 
     if order.status == "CONFIRMED":
@@ -185,8 +240,17 @@ def cancel_order(db: Session, order_id: int, organization_id: int):
 
     logger.info(f"Order cancelled {order.id}")
 
-    send_order_cancelled_notification.delay({
-        "order_id": order.id
-    })
+    items_payload = [
+        {
+            "product_name": item.product_name,
+            "quantity": item.quantity,
+            "unit_price": item.unit_price
+        }
+        for item in order.items
+    ]
+
+    send_order_cancelled_notification.delay(
+        build_order_payload(order, items_payload)
+    )
 
     return order
