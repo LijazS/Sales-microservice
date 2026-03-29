@@ -14,23 +14,24 @@ from app.services.order_service import (
 )
 
 from app.dependencies.permissions import require_permission
-from app.dependencies.auth import get_current_user
 
-router = APIRouter(prefix="/orders", tags=["Orders"])
+router = APIRouter(
+    prefix="/orders",
+    tags=["Orders"]
+)
 
 @router.get("/health")
 def health():
     return {"status": "ok"}
 
+
 @router.post("", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
-@router.post("/", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
 def create_order_api(
     data: OrderCreate,
     request: Request,
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("order.create")),
 ):
-
     auth_header = request.headers.get("Authorization")
 
     return create_order(
@@ -49,15 +50,10 @@ def get_order_api(
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("order.read")),
 ):
+    return get_order(db, order_id, current_user.org_id)
 
-    return get_order(
-        db,
-        order_id,
-        current_user.org_id
-    )
 
 @router.get("", response_model=list[OrderResponse])
-@router.get("/", response_model=list[OrderResponse])
 def list_orders_api(
     page: int = Query(1, ge=1),
     limit: int = Query(15, ge=1, le=100),
@@ -66,7 +62,6 @@ def list_orders_api(
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("order.read")),
 ):
-
     offset = (page - 1) * limit
 
     return list_orders(
@@ -86,7 +81,6 @@ def update_order_api(
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("order.update")),
 ):
-
     return update_order(
         db,
         order_id,
@@ -101,12 +95,7 @@ def confirm_order_api(
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("order.confirm")),
 ):
-
-    return confirm_order(
-        db,
-        order_id,
-        current_user.org_id
-    )
+    return confirm_order(db, order_id, current_user.org_id)
 
 
 @router.post("/{order_id}/cancel", response_model=OrderResponse)
@@ -115,9 +104,4 @@ def cancel_order_api(
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("order.cancel")),
 ):
-
-    return cancel_order(
-        db,
-        order_id,
-        current_user.org_id
-    )
+    return cancel_order(db, order_id, current_user.org_id)
