@@ -18,7 +18,7 @@ spec:
         urlRewrite:
           path:
             type: ReplacePrefixMatch
-            replacePrefixMatch: /orders
+            replacePrefixMatch: /orders/
     backendRefs:
       - name: order-service
         port: 3000
