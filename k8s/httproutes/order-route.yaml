@@ -7,29 +7,18 @@ spec:
   parentRefs:
   - name: sales-gateway
     namespace: sales-gateway-ns
+
   rules:
   - matches:
-    - path: 
-        type: PathPrefix
-        value: /api/orders
+      - path: 
+          type: PathPrefix
+          value: /api/orders
     filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /orders
-  - matches:
-    - path: 
-        type: PathPrefix
-        value: /api/orders
-    filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /orders/
-    
+      - type: URLRewrite
+        urlRewrite:
+          path:
+            type: ReplacePrefixMatch
+            replacePrefixMatch: /orders
     backendRefs:
-    - name: order-service
-      port: 3000
-
+      - name: order-service
+        port: 3000
