@@ -1,5 +1,9 @@
 architecture: replication
 
+image:
+  repository: bitnami/mysql
+  tag: 8.0
+
 auth:
   rootPassword: rootpassword
   replicationPassword: rootpassword
