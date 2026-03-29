@@ -1,0 +1,22 @@
+architecture: replication
+
+auth:
+  rootPassword: rootpassword
+  replicationPassword: rootpassword
+
+  database: sales_db        
+  username: salesuser       
+  password: salespassword   
+
+primary:
+  service:
+    name: mysql-db        
+  persistence:
+    size: 2Gi
+    storageClass: sales-storageclass
+
+secondary:
+  replicaCount: 2
+  persistence:
+    size: 2Gi
+    storageClass: sales-storageclass
