@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: mysql-db-0
+  name: mysql-db-01
   namespace: sales-db-ns
 spec:
   selector:
