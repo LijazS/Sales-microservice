@@ -4,7 +4,7 @@ metadata:
   name: sales-storageclass 
 provisioner: nfs.csi.k8s.io
 parameters:
-  server: 172.31.10.228
+  server: 65.0.107.237
   share: /var/nfs/sales-microservice/test
 reclaimPolicy: Retain
 volumeBindingMode: Immediate
