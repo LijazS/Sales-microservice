@@ -8,6 +8,14 @@ class SignupRequest(BaseModel):
     password: str = Field(..., min_length=8)
 
 
+class SignupResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user_id: int
+    email: EmailStr
+    organization_name: str
+
+
 class LoginRequest(BaseModel):
     organization_slug: str
     email: EmailStr

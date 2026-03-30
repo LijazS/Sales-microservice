@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 import os
@@ -8,21 +9,46 @@ from app.models.order_item import OrderItem
 from app.exceptions.custom_exceptions import NotFoundException, ConflictException
 from app.utils.service_client import authenticated_get
 
+from app.core.celery_app import celery  
+
+logger = logging.getLogger(__name__)
+
 CUSTOMER_SERVICE_URL = os.getenv("CUSTOMER_SERVICE_URL")
+API_VERSION = os.getenv("API_VERSION", "/api/v1")
 
 
 # -----------------------------
-# VALIDATE CUSTOMER
+# VALIDATE + FETCH CUSTOMER
 # -----------------------------
-def validate_customer(customer_id: int, auth_header: str):
+def fetch_customer(customer_id: int, auth_header: str):
 
-    response = authenticated_get(
-        f"{CUSTOMER_SERVICE_URL}/customers/{customer_id}",
-        auth_header
-    )
+    url = f"{CUSTOMER_SERVICE_URL}{API_VERSION}/customers/{customer_id}"
 
+    response = authenticated_get(url, auth_header)
+    logger.info("Calling customer service", extra={"url": url})
     if response.status_code != 200:
         raise NotFoundException("Customer not found")
+
+    data = response.json()
+
+    return {
+        "email": data.get("email"),
+        "name": data.get("name") or data.get("customer_name")
+    }
+
+
+# -----------------------------
+# HELPER: BUILD PAYLOAD
+# -----------------------------
+def build_order_payload(order: Order, items: list):
+    return {
+        "order_id": order.id,
+        "customer_id": order.customer_id,
+        "organization_id": order.organization_id,
+        "email": order.customer_email,
+        "customer_name": order.customer_name,
+        "items": items
+    }
 
 
 # -----------------------------
@@ -37,11 +63,15 @@ def create_order(
     auth_header: str
 ) -> Order:
 
-    validate_customer(customer_id, auth_header)
+    logger.info(f"Creating order for customer {customer_id}")
+
+    customer = fetch_customer(customer_id, auth_header)
 
     order = Order(
         organization_id=organization_id,
         customer_id=customer_id,
+        customer_email=customer["email"],
+        customer_name=customer["name"],
         status="CREATED",
         created_by_user_id=created_by_user_id,
         created_at=datetime.now(timezone.utc),
@@ -62,6 +92,16 @@ def create_order(
         )
 
     db.commit()
+
+    logger.info(f"Order created with ID {order.id}")
+
+    celery.send_task(
+        "notification.send_order_created_email",
+        args=[{
+            "payload": build_order_payload(order, items)
+        }],
+        queue="notification_queue"
+    )
 
     return get_order(db, order.id, organization_id)
 
@@ -114,7 +154,6 @@ def list_orders(db: Session, organization_id, offset=0, limit=15, status=None, c
     )
 
     for order in orders:
-
         items = db.query(OrderItem).filter(
             OrderItem.order_id == order.id
         ).all()
@@ -166,6 +205,25 @@ def confirm_order(db: Session, order_id: int, organization_id: int):
     db.commit()
     db.refresh(order)
 
+    logger.info(f"Order confirmed {order.id}")
+
+    items_payload = [
+        {
+            "product_name": item.product_name,
+            "quantity": item.quantity,
+            "unit_price": item.unit_price
+        }
+        for item in order.items
+    ]
+
+    celery.send_task(
+        "notification.send_order_confirmed_email",
+        args=[{
+            "payload": build_order_payload(order, items_payload)
+        }],
+        queue="notification_queue"
+    )
+
     return order
 
 
@@ -182,5 +240,24 @@ def cancel_order(db: Session, order_id: int, organization_id: int):
     order.status = "CANCELLED"
     db.commit()
     db.refresh(order)
+
+    logger.info(f"Order cancelled {order.id}")
+
+    items_payload = [
+        {
+            "product_name": item.product_name,
+            "quantity": item.quantity,
+            "unit_price": item.unit_price
+        }
+        for item in order.items
+    ]
+
+    celery.send_task(
+        "notification.send_order_cancelled_email",
+        args=[{
+            "payload": build_order_payload(order, items_payload)
+        }],
+        queue="notification_queue"
+    )
 
     return order
