@@ -14,7 +14,10 @@ celery = Celery(
 )
 
 celery.conf.update(
-    imports=["app.tasks.email_tasks"],
+    imports=[
+        "app.tasks.email_tasks",
+        "app.tasks.order_email_tasks"
+    ],
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
