@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
         - name: customers-container
-          image: kubectlandchill/sales-customer-service:v1.2.0
+          image: kubectlandchill/sales-customer-service:v1.2.1
           resources:
             limits:
               memory: "512Mi"
