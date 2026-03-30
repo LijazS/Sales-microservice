@@ -11,13 +11,13 @@ spec:
   - matches:
     - path:
         type: PathPrefix
-        value: /api/invoices
-    filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /invoices
+        value: /api/v1/invoices
+    # filters:
+    # - type: URLRewrite
+    #   urlRewrite:
+    #     path:
+    #       type: ReplacePrefixMatch
+    #       replacePrefixMatch: /invoices
     backendRefs:
     - name: invoice-service
       port: 3000

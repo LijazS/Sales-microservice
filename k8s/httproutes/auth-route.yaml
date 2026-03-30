@@ -11,13 +11,13 @@ spec:
   - matches:
     - path: 
         type: PathPrefix
-        value: /api/auth
-    filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /auth
+        value: /api/v1/auth
+    # filters:
+    # - type: URLRewrite
+    #   urlRewrite:
+    #     path:
+    #       type: ReplacePrefixMatch
+    #       replacePrefixMatch: /api/v1/auth
     backendRefs:
     - name: auth-service
       port: 3000

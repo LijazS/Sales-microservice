@@ -11,13 +11,13 @@ spec:
   - matches:
     - path: 
         type: PathPrefix
-        value: /api/payment
-    filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /payment
+        value: /api/v1/payment
+    # filters:
+    # - type: URLRewrite
+    #   urlRewrite:
+    #     path:
+    #       type: ReplacePrefixMatch
+    #       replacePrefixMatch: /payment
     backendRefs:
     - name: payment-service
       port: 3000

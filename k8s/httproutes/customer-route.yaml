@@ -11,13 +11,13 @@ spec:
   - matches:
     - path: 
         type: PathPrefix
-        value: /api/customers
-    filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /customers
+        value: /api/v1/customers
+    # filters:
+    # - type: URLRewrite
+    #   urlRewrite:
+    #     path:
+    #       type: ReplacePrefixMatch
+    #       replacePrefixMatch: /customers
     backendRefs:
     - name: customer-service
       port: 3000
