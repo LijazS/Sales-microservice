@@ -7,7 +7,6 @@ spec:
   parentRefs:
   - name: sales-gateway
     namespace: sales-gateway-ns
-
   rules:
   - matches:
       - path: 
