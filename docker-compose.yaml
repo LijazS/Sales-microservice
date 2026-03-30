@@ -87,10 +87,11 @@ services:
     restart: always
     environment:
       - DATABASE_URL=${DATABASE_URL}
-      - CUSTOMER_SERVICE_URL=http://customer-service:3000/api/v1
+      - CUSTOMER_SERVICE_URL=http://customer-service:3000
       - ENVIRONMENT=${ENVIRONMENT}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - SERVICE_NAME=order-service
+      - API_VERSION=${API_VERSION}
     depends_on:
       - customer-service
       - rabbitmq
@@ -104,7 +105,8 @@ services:
     restart: always
     environment:
       - DATABASE_URL=${DATABASE_URL}
-      - ORDER_SERVICE_URL=http://order-service:3000/api/v1
+      - ORDER_SERVICE_URL=http://order-service:3000
+      - API_VERSION=${API_VERSION}
       - ENVIRONMENT=${ENVIRONMENT}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - SERVICE_NAME=invoice-service
