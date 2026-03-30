@@ -14,7 +14,7 @@ from app.services.customer_service import (
 from app.dependencies.permissions import require_permission
 from app.dependencies.auth import get_current_user
 
-router = APIRouter(prefix="/customers", tags=["Customers"])
+router = APIRouter(prefix="/api/v1/customers", tags=["Customers"])
 
 @router.get("/health")
 def health():
