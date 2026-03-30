@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 import os
@@ -8,15 +9,9 @@ from app.models.order_item import OrderItem
 from app.exceptions.custom_exceptions import NotFoundException, ConflictException
 from app.utils.service_client import authenticated_get
 
-from app.core.logging_config import get_logger
+from app.core.celery_app import celery  
 
-from app.tasks.notification_tasks import (
-    send_order_created_notification,
-    send_order_confirmed_notification,
-    send_order_cancelled_notification
-)
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 CUSTOMER_SERVICE_URL = os.getenv("CUSTOMER_SERVICE_URL")
 
@@ -75,8 +70,8 @@ def create_order(
     order = Order(
         organization_id=organization_id,
         customer_id=customer_id,
-        customer_email=customer["email"],      
-        customer_name=customer["name"],        
+        customer_email=customer["email"],
+        customer_name=customer["name"],
         status="CREATED",
         created_by_user_id=created_by_user_id,
         created_at=datetime.now(timezone.utc),
@@ -100,8 +95,12 @@ def create_order(
 
     logger.info(f"Order created with ID {order.id}")
 
-    send_order_created_notification.delay(
-        build_order_payload(order, items)
+    celery.send_task(
+        "notification.send_order_created_email",
+        args=[{
+            "payload": build_order_payload(order, items)
+        }],
+        queue="notification_queue"
     )
 
     return get_order(db, order.id, organization_id)
@@ -217,8 +216,12 @@ def confirm_order(db: Session, order_id: int, organization_id: int):
         for item in order.items
     ]
 
-    send_order_confirmed_notification.delay(
-        build_order_payload(order, items_payload)
+    celery.send_task(
+        "notification.send_order_confirmed_email",
+        args=[{
+            "payload": build_order_payload(order, items_payload)
+        }],
+        queue="notification_queue"
     )
 
     return order
@@ -249,8 +252,12 @@ def cancel_order(db: Session, order_id: int, organization_id: int):
         for item in order.items
     ]
 
-    send_order_cancelled_notification.delay(
-        build_order_payload(order, items_payload)
+    celery.send_task(
+        "notification.send_order_cancelled_email",
+        args=[{
+            "payload": build_order_payload(order, items_payload)
+        }],
+        queue="notification_queue"
     )
 
     return order
