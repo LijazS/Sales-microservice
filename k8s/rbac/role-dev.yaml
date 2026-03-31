@@ -5,9 +5,8 @@ metadata:
   namespace: sales-test-ns
 rules:
 - apiGroups: [""]
-  resources: ["pods", "services"]
-  verbs: ["get", "list", "watch"]
-
+  resources: ["pods", "services", "configmaps", "secrets"]
+  verbs: ["*"]
 - apiGroups: ["apps"]
-  resources: ["deployments"]
-  verbs: ["get", "list", "watch", "create", "update"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["*"]

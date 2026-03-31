@@ -1,13 +1,13 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: dev-binding
+  name: qa-binding
   namespace: sales-test-ns
 subjects:
 - kind: Group
-  name: dev
+  name: qa
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: Role
-  name: dev-role
+  name: qa-role
   apiGroup: rbac.authorization.k8s.io
