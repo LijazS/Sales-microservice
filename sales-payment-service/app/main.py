@@ -3,7 +3,9 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.routers import payments
+from app.core.middleware import RequestContextMiddleware
+
+from app.routers.v1 import payments
 
 from app.exceptions.custom_exceptions import AppException
 from app.exceptions.handlers import (
@@ -13,6 +15,8 @@ from app.exceptions.handlers import (
     generic_exception_handler
 )
 
+from app.core.logging_config import setup_logging
+setup_logging()
 
 if os.getenv("ENVIRONMENT") == "production":
     docs_url = None
@@ -38,4 +42,4 @@ app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, generic_exception_handler)
 
-app.include_router(payments.router)
+app.include_router(payments.router,prefix="/api/v1")

@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, status, Request
 from sqlalchemy.orm import Session
-from decimal import Decimal
 
 from app.database import get_db
 from app.schemas import InvoiceResponse, InvoiceStatusUpdate
@@ -17,11 +16,18 @@ from app.dependencies.permissions import require_permission
 
 router = APIRouter(prefix="/invoices", tags=["Invoices"])
 
+
+# -----------------------------
+# HEALTH
+# -----------------------------
 @router.get("/health")
 def health():
     return {"status": "ok"}
 
 
+# -----------------------------
+# CREATE INVOICE
+# -----------------------------
 @router.post(
     "/orders/{order_id}",
     response_model=InvoiceResponse,
@@ -45,6 +51,9 @@ def create_invoice_api(
     )
 
 
+# -----------------------------
+# GET INVOICE
+# -----------------------------
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
 def get_invoice_api(
     invoice_id: int,
@@ -59,6 +68,9 @@ def get_invoice_api(
     )
 
 
+# -----------------------------
+# LIST INVOICES
+# -----------------------------
 @router.get("/", response_model=list[InvoiceResponse])
 def list_invoice_api(
     status: str | None = None,
@@ -75,31 +87,45 @@ def list_invoice_api(
     )
 
 
+# -----------------------------
+# CANCEL INVOICE
+# -----------------------------
 @router.post("/{invoice_id}/cancel", response_model=InvoiceResponse)
 def cancel_invoice_api(
     invoice_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("invoice.cancel"))
 ):
 
+    auth_header = request.headers.get("Authorization")
+
     return cancel_invoice(
         db,
         invoice_id,
-        current_user.org_id
+        current_user.org_id,
+        auth_header   
     )
 
 
+# -----------------------------
+# UPDATE STATUS
+# -----------------------------
 @router.post("/{invoice_id}/status")
 def update_invoice_status_api(
     invoice_id: int,
     payload: InvoiceStatusUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("invoice.update"))
 ):
+
+    auth_header = request.headers.get("Authorization")
 
     return update_invoice_status(
         db,
         invoice_id,
         current_user.org_id,
-        payload.status
+        payload.status,
+        auth_header   
     )

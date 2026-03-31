@@ -33,6 +33,8 @@ class OrderUpdate(BaseModel):
 class OrderResponse(BaseModel):
     id: int
     customer_id: int
+    customer_email: str
+    customer_name: str
     status: str
     created_at: datetime
     total: float
