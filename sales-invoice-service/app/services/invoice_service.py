@@ -2,12 +2,18 @@ from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from sqlalchemy.orm import Session
 import os
+import logging
 
 from app.models.invoice import Invoice
 from app.exceptions.custom_exceptions import NotFoundException, ConflictException
 from app.utils.service_client import authenticated_get
+from app.core.celery_app import celery
+from app.core.logging_config import request_id_ctx
+
+logger = logging.getLogger(__name__)
 
 ORDER_SERVICE_URL = os.getenv("ORDER_SERVICE_URL")
+API_VERSION = os.getenv("API_VERSION", "/api/v1")
 
 TAX_RATE = Decimal("0.18")
 
@@ -17,10 +23,11 @@ TAX_RATE = Decimal("0.18")
 # -----------------------------
 def fetch_order(order_id: int, auth_header: str):
 
-    response = authenticated_get(
-        f"{ORDER_SERVICE_URL}/orders/{order_id}",
-        auth_header
-    )
+    url = f"{ORDER_SERVICE_URL}{API_VERSION}/orders/{order_id}"
+
+    logger.info("Fetching order", extra={"order_id": order_id, "url": url})
+
+    response = authenticated_get(url, auth_header)
 
     if response.status_code != 200:
         raise NotFoundException("Order not found")
@@ -40,6 +47,8 @@ def create_invoice(
     discount_type: str | None = None,
     discount_value: Decimal = Decimal("0.00"),
 ):
+
+    logger.info("Creating invoice", extra={"order_id": order_id})
 
     order_data = fetch_order(order_id, auth_header)
 
@@ -65,7 +74,6 @@ def create_invoice(
 
     if discount_type == "FLAT":
         discount_amount = discount_value
-
     elif discount_type == "PERCENT":
         discount_amount = (
             subtotal * discount_value / Decimal("100")
@@ -94,12 +102,30 @@ def create_invoice(
     db.commit()
     db.refresh(invoice)
 
+    request_id = request_id_ctx.get()
+
+    celery.send_task(
+        "notification.send_invoice_created_email",
+        kwargs={
+            "payload": {
+                "invoice_id": invoice.id,
+                "order_id": invoice.order_id,
+                "email": order_data.get("customer_email"),
+                "customer_name": order_data.get("customer_name"),
+                "total": str(invoice.total),
+                "status": invoice.status,
+            },
+            "request_id": request_id,
+        },
+        queue="notification_queue"
+    )
+
+    logger.info("Invoice created event published", extra={"invoice_id": invoice.id})
+
     return invoice
 
 
-# -----------------------------
-# GET INVOICE
-# -----------------------------
+
 def get_invoice(db: Session, invoice_id: int, organization_id: int):
 
     invoice = (
@@ -118,6 +144,104 @@ def get_invoice(db: Session, invoice_id: int, organization_id: int):
 
 
 # -----------------------------
+# CANCEL INVOICE
+# -----------------------------
+def cancel_invoice(db: Session, invoice_id: int, organization_id: int, auth_header: str):
+
+    invoice = get_invoice(db, invoice_id, organization_id)
+
+    if invoice.status != "UNPAID":
+        raise ConflictException("Only unpaid invoices can be cancelled")
+
+    order_data = fetch_order(invoice.order_id, auth_header)
+
+    invoice.status = "CANCELLED"
+    db.commit()
+    db.refresh(invoice)
+
+    celery.send_task(
+        "notification.send_invoice_cancelled_email",
+        kwargs={
+            "payload": {
+                "invoice_id": invoice.id,
+                "order_id": invoice.order_id,
+                "email": order_data.get("customer_email"),
+                "customer_name": order_data.get("customer_name"),
+            },
+            "request_id": request_id_ctx.get(),
+        },
+        queue="notification_queue"
+    )
+
+    return invoice
+
+
+# -----------------------------
+# UPDATE STATUS
+# -----------------------------
+def update_invoice_status(
+    db: Session,
+    invoice_id: int,
+    organization_id: int,
+    status: str,
+    auth_header: str
+):
+
+    invoice = get_invoice(db, invoice_id, organization_id)
+
+    invoice.status = status
+    db.commit()
+    db.refresh(invoice)
+
+    logger.info(
+        "Invoice status updated",
+        extra={"invoice_id": invoice.id, "status": status}
+    )
+
+    order_data = fetch_order(invoice.order_id, auth_header)
+
+    payload = {
+        "invoice_id": invoice.id,
+        "order_id": invoice.order_id,
+        "email": order_data.get("customer_email"),
+        "customer_name": order_data.get("customer_name"),
+        "total": str(invoice.total),
+    }
+
+    request_id = request_id_ctx.get()
+
+
+    if status == "PAID":
+
+        logger.info("Publishing INVOICE_PAID event", extra={"invoice_id": invoice.id})
+
+        celery.send_task(
+            "notification.send_invoice_paid_email",
+            kwargs={
+                "payload": payload,
+                "request_id": request_id,
+            },
+            queue="notification_queue"
+        )
+
+
+
+    elif status == "REFUNDED":
+
+        logger.info("Publishing INVOICE_REFUNDED event", extra={"invoice_id": invoice.id})
+
+        celery.send_task(
+            "notification.send_invoice_refunded_email",
+            kwargs={
+                "payload": payload,
+                "request_id": request_id,
+            },
+            queue="notification_queue"
+        )
+
+    return invoice
+
+# -----------------------------
 # LIST INVOICES
 # -----------------------------
 def list_invoices(db: Session, organization_id, status=None, order_id=None):
@@ -133,35 +257,3 @@ def list_invoices(db: Session, organization_id, status=None, order_id=None):
         query = query.filter(Invoice.order_id == order_id)
 
     return query.order_by(Invoice.id.desc()).all()
-
-
-# -----------------------------
-# CANCEL INVOICE
-# -----------------------------
-def cancel_invoice(db: Session, invoice_id: int, organization_id: int):
-
-    invoice = get_invoice(db, invoice_id, organization_id)
-
-    if invoice.status != "UNPAID":
-        raise ConflictException("Only unpaid invoices can be cancelled")
-
-    invoice.status = "CANCELLED"
-    db.commit()
-    db.refresh(invoice)
-
-    return invoice
-
-
-# -----------------------------
-# UPDATE STATUS (called by payment-service)
-# -----------------------------
-def update_invoice_status(db: Session, invoice_id: int, organization_id: int, status: str):
-
-    invoice = get_invoice(db, invoice_id, organization_id)
-
-    invoice.status = status
-
-    db.commit()
-    db.refresh(invoice)
-
-    return invoice

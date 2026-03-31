@@ -9,7 +9,7 @@ from app.models.order_item import OrderItem
 from app.exceptions.custom_exceptions import NotFoundException, ConflictException
 from app.utils.service_client import authenticated_get
 
-from app.core.celery_app import celery  
+from app.core.celery_app import celery
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,7 @@ def fetch_customer(customer_id: int, auth_header: str):
 
     response = authenticated_get(url, auth_header)
     logger.info("Calling customer service", extra={"url": url})
+
     if response.status_code != 200:
         raise NotFoundException("Customer not found")
 
@@ -52,6 +53,45 @@ def build_order_payload(order: Order, items: list):
 
 
 # -----------------------------
+# GET ORDER DB (CORE)
+# -----------------------------
+def get_order_db(
+    db: Session,
+    order_id: int,
+    organization_id: int,
+) -> Order:
+
+    order = (
+        db.query(Order)
+        .filter(
+            Order.id == order_id,
+            Order.organization_id == organization_id
+        )
+        .first()
+    )
+
+    if not order:
+        raise NotFoundException("Order not found")
+
+    return order
+
+
+# -----------------------------
+# ATTACH ITEMS + TOTAL
+# -----------------------------
+def attach_order_details(db: Session, order: Order):
+
+    items = db.query(OrderItem).filter(
+        OrderItem.order_id == order.id
+    ).all()
+
+    order.items = items
+    order.total = sum(item.quantity * item.unit_price for item in items)
+
+    return order
+
+
+# -----------------------------
 # CREATE ORDER
 # -----------------------------
 def create_order(
@@ -63,7 +103,7 @@ def create_order(
     auth_header: str
 ) -> Order:
 
-    logger.info(f"Creating order for customer {customer_id}")
+    logger.info("Creating order", extra={"customer_id": customer_id})
 
     customer = fetch_customer(customer_id, auth_header)
 
@@ -93,7 +133,7 @@ def create_order(
 
     db.commit()
 
-    logger.info(f"Order created with ID {order.id}")
+    logger.info("Order created", extra={"order_id": order.id})
 
     celery.send_task(
         "notification.send_order_created_email",
@@ -107,36 +147,29 @@ def create_order(
 
 
 # -----------------------------
-# GET ORDER
+# GET ORDER (API)
 # -----------------------------
-def get_order(db: Session, order_id: int, organization_id: int) -> Order:
+def get_order(
+    db: Session,
+    order_id: int,
+    organization_id: int,
+) -> Order:
 
-    order = (
-        db.query(Order)
-        .filter(
-            Order.id == order_id,
-            Order.organization_id == organization_id
-        )
-        .first()
-    )
-
-    if not order:
-        raise NotFoundException("Order not found")
-
-    items = db.query(OrderItem).filter(
-        OrderItem.order_id == order.id
-    ).all()
-
-    order.items = items
-    order.total = sum(item.quantity * item.unit_price for item in items)
-
-    return order
+    order = get_order_db(db, order_id, organization_id)
+    return attach_order_details(db, order)
 
 
 # -----------------------------
 # LIST ORDERS
 # -----------------------------
-def list_orders(db: Session, organization_id, offset=0, limit=15, status=None, customer_id=None):
+def list_orders(
+    db: Session,
+    organization_id,
+    offset=0,
+    limit=15,
+    status=None,
+    customer_id=None
+):
 
     query = db.query(Order).filter(Order.organization_id == organization_id)
 
@@ -153,15 +186,7 @@ def list_orders(db: Session, organization_id, offset=0, limit=15, status=None, c
         .all()
     )
 
-    for order in orders:
-        items = db.query(OrderItem).filter(
-            OrderItem.order_id == order.id
-        ).all()
-
-        order.items = items
-        order.total = sum(item.quantity * item.unit_price for item in items)
-
-    return orders
+    return [attach_order_details(db, order) for order in orders]
 
 
 # -----------------------------
@@ -169,7 +194,7 @@ def list_orders(db: Session, organization_id, offset=0, limit=15, status=None, c
 # -----------------------------
 def update_order(db: Session, order_id: int, organization_id: int, items: list):
 
-    order = get_order(db, order_id, organization_id)
+    order = get_order_db(db, order_id, organization_id)
 
     if order.status != "CREATED":
         raise ConflictException("Only CREATED orders can be updated")
@@ -196,7 +221,7 @@ def update_order(db: Session, order_id: int, organization_id: int, items: list):
 # -----------------------------
 def confirm_order(db: Session, order_id: int, organization_id: int):
 
-    order = get_order(db, order_id, organization_id)
+    order = get_order_db(db, order_id, organization_id)
 
     if order.status != "CREATED":
         raise ConflictException("Only CREATED orders can be confirmed")
@@ -205,7 +230,11 @@ def confirm_order(db: Session, order_id: int, organization_id: int):
     db.commit()
     db.refresh(order)
 
-    logger.info(f"Order confirmed {order.id}")
+    logger.info("Order confirmed", extra={"order_id": order.id})
+
+    items = db.query(OrderItem).filter(
+        OrderItem.order_id == order.id
+    ).all()
 
     items_payload = [
         {
@@ -213,7 +242,7 @@ def confirm_order(db: Session, order_id: int, organization_id: int):
             "quantity": item.quantity,
             "unit_price": item.unit_price
         }
-        for item in order.items
+        for item in items
     ]
 
     celery.send_task(
@@ -224,7 +253,7 @@ def confirm_order(db: Session, order_id: int, organization_id: int):
         queue="notification_queue"
     )
 
-    return order
+    return attach_order_details(db, order)
 
 
 # -----------------------------
@@ -232,7 +261,7 @@ def confirm_order(db: Session, order_id: int, organization_id: int):
 # -----------------------------
 def cancel_order(db: Session, order_id: int, organization_id: int):
 
-    order = get_order(db, order_id, organization_id)
+    order = get_order_db(db, order_id, organization_id)
 
     if order.status == "CONFIRMED":
         raise ConflictException("Confirmed orders cannot be cancelled")
@@ -241,7 +270,11 @@ def cancel_order(db: Session, order_id: int, organization_id: int):
     db.commit()
     db.refresh(order)
 
-    logger.info(f"Order cancelled {order.id}")
+    logger.info("Order cancelled", extra={"order_id": order.id})
+
+    items = db.query(OrderItem).filter(
+        OrderItem.order_id == order.id
+    ).all()
 
     items_payload = [
         {
@@ -249,7 +282,7 @@ def cancel_order(db: Session, order_id: int, organization_id: int):
             "quantity": item.quantity,
             "unit_price": item.unit_price
         }
-        for item in order.items
+        for item in items
     ]
 
     celery.send_task(
@@ -260,4 +293,4 @@ def cancel_order(db: Session, order_id: int, organization_id: int):
         queue="notification_queue"
     )
 
-    return order
+    return attach_order_details(db, order)
