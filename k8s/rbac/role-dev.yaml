@@ -1,12 +1,8 @@
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
-  name: dev-role
-  namespace: sales-test-ns
+  name: developer-role
 rules:
-- apiGroups: [""]
-  resources: ["pods", "services", "configmaps", "secrets"]
-  verbs: ["*"]
-- apiGroups: ["apps"]
-  resources: ["deployments", "replicasets"]
-  verbs: ["*"]
+- apiGroups: ["","apps"]
+  resources: ["pods","deployments"]
+  verbs: ["get", "watch", "list", "create", "update", "delete"]
