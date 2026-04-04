@@ -9,11 +9,11 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: test
+      app: nginx-new
   template:
     metadata:
       labels:
-        app: test
+        app: nginx-new
     spec:
       affinity:
         podAntiAffinity:
