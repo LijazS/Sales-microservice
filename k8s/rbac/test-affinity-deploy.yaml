@@ -1,27 +1,30 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nginx-deploy-new
+  name: mysql
   namespace: test-ns
+  labels:
+    app: mysql
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: test
+      app: mysql
   template:
     metadata:
       labels:
-        app: test
+        app: mysql
     spec:
       affinity:
-        podAntiAffinity:
+        podAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchLabels:
-                  app: nginx-l
-              topologyKey: kubernetes.io/hostname
+          - labelSelector:
+              matchLabels:
+                app: nginx-new
+            topologyKey: kubernetes.io/hostname
       containers:
-      - name: nginx-container
-        image: nginx
-        ports:
-        - containerPort: 80 
+      - name: mysql-container
+        image: mysql
+        port:
+        - containerPort: 3306
+    

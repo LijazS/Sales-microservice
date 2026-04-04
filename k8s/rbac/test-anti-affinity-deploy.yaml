@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deploy-new
+  namespace: test-ns
+  labels:
+    app: nginx-new
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test
+  template:
+    metadata:
+      labels:
+        app: test
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: nginx-l
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: nginx-container
+        image: nginx
+        ports:
+        - containerPort: 80 
