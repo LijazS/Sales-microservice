@@ -17,11 +17,13 @@ spec:
     spec:
       affinity:
         podAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchLabels:
-                app: nginx-new
-            topologyKey: kubernetes.io/hostname
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm: 
+              labelSelector:
+                matchLabels:
+                  app: nginx-new
+              topologyKey: kubernetes.io/hostname
       containers:
       - name: mysql-container
         image: mysql
