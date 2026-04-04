@@ -13,8 +13,14 @@ spec:
       labels:
         app: test
     spec:
-      nodeSelector:
-        name: gudboi
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: name
+                operator: In 
+                values: ["gudboi"]
       containers:
       - name: nginx-container
         image: nginx
