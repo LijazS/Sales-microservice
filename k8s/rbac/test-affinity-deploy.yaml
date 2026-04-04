@@ -1,12 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nginx-deploy
+  name: nginx-deploy-new
   namespace: test-ns
-  labels:
-    app: nginx-l
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: test
@@ -16,13 +14,12 @@ spec:
         app: test
     spec:
       affinity:
-        nodeAffinity:
+        podAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: name
-                operator: In 
-                values: ["gudboi"]
+            - labelSelector:
+                matchLabels:
+                  app: nginx-l
+              topologyKey: kubernetes.io/hostname
       containers:
       - name: nginx-container
         image: nginx
