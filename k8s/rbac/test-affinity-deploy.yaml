@@ -17,7 +17,7 @@ spec:
     spec:
       affinity:
         podAffinity:
-          requireddDuringSchedulingIgnoredDuringExecution:
+          requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
                 matchLabels:
                   app: nginx-new
