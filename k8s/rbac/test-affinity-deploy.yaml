@@ -18,8 +18,7 @@ spec:
       affinity:
         podAffinity:
           requireddDuringSchedulingIgnoredDuringExecution:
-            - podAffinityTerm: 
-              labelSelector:
+            - labelSelector:
                 matchLabels:
                   app: nginx-new
               topologyKey: kubernetes.io/hostname
