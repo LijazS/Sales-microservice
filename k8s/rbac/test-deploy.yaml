@@ -9,7 +9,7 @@ spec:
     matchLabels:
       app: test
   template:
-    meatadata:
+    metadata:
       labels:
         app: test
     spec:
